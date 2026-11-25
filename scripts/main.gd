@@ -1,427 +1,413 @@
 
 extends Node3D
 
-const CLUB_NAME := "DUNGSHRI PASCHIM PARA CRICKET CLUB"
-const GAME_NAME := "DPPCC CRICKET"
-
-var camera: Camera3D
-var ball: MeshInstance3D
-var status_label: Label
-var score_label: Label
-var menu_panel: Control
-var match_panel: Control
+const CLUB_NAME = "DUNGSHRI PASCHIM PARA CRICKET CLUB"
 
 var score: int = 0
 var wickets: int = 0
-var balls_faced: int = 0
-var ball_in_motion: bool = false
-var ball_z: float = -4.5
-var shot_used: bool = false
+var balls: int = 0
 
+var ball: MeshInstance3D
+var ball_active: bool = false
+var ball_velocity: Vector3 = Vector3.ZERO
+var shot_played: bool = false
+
+var score_label: Label
+var status_label: Label
+var batter: Node3D
+var bowler: Node3D
+var bat: MeshInstance3D
+
+var ball_material: StandardMaterial3D
+var white_material: StandardMaterial3D
+var red_material: StandardMaterial3D
+var green_material: StandardMaterial3D
+var blue_material: StandardMaterial3D
+var brown_material: StandardMaterial3D
 
 func _ready() -> void:
-    _build_world()
-    _build_interface()
-    _show_menu()
+    create_materials()
+    create_environment()
+    create_field()
+    create_pitch()
+    create_stadium()
+    create_players()
+    create_ball()
+    create_camera()
+    create_ui()
+    update_scoreboard()
 
 
-# ---------------- WORLD ----------------
-
-func _build_world() -> void:
-    var world_env := WorldEnvironment.new()
-    var env := Environment.new()
-    env.background_mode = Environment.BG_COLOR
-    env.background_color = Color(0.38, 0.62, 0.82)
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color(0.8, 0.82, 0.85)
-    env.ambient_light_energy = 0.9
-    world_env.environment = env
-    add_child(world_env)
-
-    var sun := DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-55, -25, 0)
-    sun.light_energy = 1.2
-    add_child(sun)
-
-    _build_stadium()
-    _build_pitch()
-    _build_wickets()
-
-    camera = Camera3D.new()
-    camera.position = Vector3(0, 19, 34)
-    camera.look_at(Vector3(0, 0, 0), Vector3.UP)
-    camera.current = true
-    add_child(camera)
-
-    ball = MeshInstance3D.new()
-    var ball_mesh := SphereMesh.new()
-    ball_mesh.radius = 0.18
-    ball_mesh.height = 0.36
-    ball.mesh = ball_mesh
-
-    var ball_mat := StandardMaterial3D.new()
-    ball_mat.albedo_color = Color(0.9, 0.04, 0.03)
-    ball.material_override = ball_mat
-    ball.position = Vector3(0, 0.35, -4.5)
-    ball.visible = false
-    add_child(ball)
+func create_materials() -> void:
+    white_material = make_material(Color.WHITE)
+    red_material = make_material(Color(0.8, 0.05, 0.04))
+    green_material = make_material(Color(0.08, 0.42, 0.12))
+    blue_material = make_material(Color(0.05, 0.18, 0.8))
+    brown_material = make_material(Color(0.38, 0.19, 0.07))
+    ball_material = make_material(Color(0.9, 0.03, 0.02))
 
 
-func _mat(color: Color) -> StandardMaterial3D:
+func make_material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = color
-    material.roughness = 0.9
     return material
 
 
-func _box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
-    var obj := MeshInstance3D.new()
+func create_environment() -> void:
+    var world := WorldEnvironment.new()
+    var environment := Environment.new()
+
+    environment.background_mode = Environment.BG_COLOR
+    environment.background_color = Color(0.35, 0.65, 0.95)
+    environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    environment.ambient_light_color = Color.WHITE
+    environment.ambient_light_energy = 0.7
+
+    world.environment = environment
+    add_child(world)
+
+    var sunlight := DirectionalLight3D.new()
+    sunlight.rotation_degrees = Vector3(-55, -30, 0)
+    sunlight.light_energy = 1.3
+    add_child(sunlight)
+
+
+func add_box(parent: Node3D, size: Vector3, pos: Vector3, material: Material) -> MeshInstance3D:
+    var item := MeshInstance3D.new()
     var mesh := BoxMesh.new()
     mesh.size = size
-    obj.mesh = mesh
-    obj.position = pos
-    obj.material_override = _mat(color)
-    parent.add_child(obj)
-    return obj
+    item.mesh = mesh
+    item.position = pos
+    item.material_override = material
+    parent.add_child(item)
+    return item
 
 
-func _build_stadium() -> void:
-    var field := MeshInstance3D.new()
-    var field_mesh := CylinderMesh.new()
-    field_mesh.top_radius = 1.0
-    field_mesh.bottom_radius = 1.0
-    field_mesh.height = 0.3
-    field_mesh.radial_segments = 64
-    field.mesh = field_mesh
-    field.scale = Vector3(38, 1, 31)
-    field.position.y = -0.16
-    field.material_override = _mat(Color(0.10, 0.36, 0.14))
-    add_child(field)
-
-    var inner := MeshInstance3D.new()
-    var inner_mesh := CylinderMesh.new()
-    inner_mesh.top_radius = 1.0
-    inner_mesh.bottom_radius = 1.0
-    inner_mesh.height = 0.12
-    inner_mesh.radial_segments = 64
-    inner.mesh = inner_mesh
-    inner.scale = Vector3(34, 1, 27)
-    inner.position.y = 0.02
-    inner.material_override = _mat(Color(0.16, 0.46, 0.19))
-    add_child(inner)
-
-    for i in range(64):
-        var angle: float = TAU * float(i) / 64.0
-        var x: float = 34.0 * cos(angle)
-        var z: float = 27.0 * sin(angle)
-
-        var marker := MeshInstance3D.new()
-        var marker_mesh := SphereMesh.new()
-        marker_mesh.radius = 0.16
-        marker.mesh = marker_mesh
-        marker.position = Vector3(x, 0.15, z)
-        marker.material_override = _mat(Color(1.0, 0.95, 0.75))
-        add_child(marker)
-
-    _build_stands()
-    _build_floodlights()
-    _build_scoreboard()
+func add_sphere(parent: Node3D, radius: float, pos: Vector3, material: Material) -> MeshInstance3D:
+    var item := MeshInstance3D.new()
+    var mesh := SphereMesh.new()
+    mesh.radius = radius
+    mesh.height = radius * 2.0
+    item.mesh = mesh
+    item.position = pos
+    item.material_override = material
+    parent.add_child(item)
+    return item
 
 
-func _build_stands() -> void:
-    var concrete := Color(0.19, 0.22, 0.27)
-    var blue := Color(0.08, 0.28, 0.62)
-    var white := Color(0.85, 0.87, 0.90)
-
-    for side in [-1.0, 1.0]:
-        for row in range(6):
-            var z: float = float(side) * (31.0 + float(row) * 1.6)
-            var y: float = 0.45 + float(row) * 0.72
-
-            _box(self, Vector3(59, 0.55, 1.5),
-                Vector3(0, y, z), concrete)
-
-            for section in range(8):
-                var x: float = -25.0 + float(section) * 7.1
-                var seat_color: Color = blue if (row + section) % 2 == 0 else white
-                _box(self, Vector3(6.7, 0.2, 0.55),
-                    Vector3(x, y + 0.32, z), seat_color)
-
-    for side in [-1.0, 1.0]:
-        for row in range(5):
-            var x: float = float(side) * (38.0 + float(row) * 1.4)
-            var y: float = 0.4 + float(row) * 0.72
-            _box(self, Vector3(1.5, 0.55, 48),
-                Vector3(x, y, 0), concrete)
+func add_capsule(parent: Node3D, radius: float, height: float, pos: Vector3, material: Material) -> MeshInstance3D:
+    var item := MeshInstance3D.new()
+    var mesh := CapsuleMesh.new()
+    mesh.radius = radius
+    mesh.height = height
+    item.mesh = mesh
+    item.position = pos
+    item.material_override = material
+    parent.add_child(item)
+    return item
 
 
-func _build_floodlights() -> void:
-    var pole_color := Color(0.34, 0.37, 0.42)
+func add_limb(parent: Node3D, start: Vector3, finish: Vector3, radius: float, material: Material) -> void:
+    var direction: Vector3 = finish - start
+    var length: float = direction.length()
 
-    for x_side in [-1.0, 1.0]:
-        for z_side in [-1.0, 1.0]:
-            var pole := MeshInstance3D.new()
-            var pole_mesh := CylinderMesh.new()
-            pole_mesh.top_radius = 0.15
-            pole_mesh.bottom_radius = 0.28
-            pole_mesh.height = 19.0
-            pole.mesh = pole_mesh
-            pole.position = Vector3(float(x_side) * 39, 9.5, float(z_side) * 33)
-            pole.material_override = _mat(pole_color)
-            add_child(pole)
+    var limb := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = radius
+    mesh.bottom_radius = radius
+    mesh.height = length
 
-            var lamp := _box(
-                self,
-                Vector3(2.8, 0.8, 1.2),
-                Vector3(float(x_side) * 39, 19, float(z_side) * 33),
-                Color(1.0, 0.94, 0.72)
-            )
-
-            var lamp_material := StandardMaterial3D.new()
-            lamp_material.albedo_color = Color(1.0, 0.94, 0.72)
-            lamp_material.emission_enabled = true
-            lamp_material.emission = Color(1.0, 0.82, 0.52)
-            lamp_material.emission_energy_multiplier = 2.0
-            lamp.material_override = lamp_material
+    limb.mesh = mesh
+    limb.position = (start + finish) / 2.0
+    limb.quaternion = Quaternion(Vector3.UP, direction.normalized())
+    limb.material_override = material
+    parent.add_child(limb)
 
 
-func _build_scoreboard() -> void:
-    _box(
-        self,
-        Vector3(12, 5, 0.6),
-        Vector3(0, 7, -43),
-        Color(0.02, 0.05, 0.09)
-    )
+func create_field() -> void:
+    add_box(self, Vector3(100, 0.3, 100), Vector3(0, -0.25, 0), green_material)
 
-    var board_text := Label3D.new()
-    board_text.text = "DPPCC CRICKET"
-    board_text.font_size = 64
-    board_text.position = Vector3(0, 7.5, -42.6)
-    board_text.pixel_size = 0.012
-    board_text.modulate = Color.WHITE
-    board_text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    add_child(board_text)
+    var grass_line := make_material(Color(0.12, 0.48, 0.12))
+    add_box(self, Vector3(38, 0.08, 38), Vector3(0, -0.04, 0), grass_line)
 
-    var club_text := Label3D.new()
-    club_text.text = "DUNGSHRI PASCHIM PARA CRICKET CLUB"
-    club_text.font_size = 22
-    club_text.position = Vector3(0, 6.3, -42.6)
-    club_text.pixel_size = 0.012
-    club_text.modulate = Color(0.75, 0.85, 1.0)
-    club_text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    add_child(club_text)
+    var boundary_material := make_material(Color(1.0, 0.85, 0.1))
+
+    for i in range(40):
+        var angle: float = float(i) * TAU / 40.0
+        var x: float = cos(angle) * 29.0
+        var z: float = sin(angle) * 29.0
+        add_sphere(self, 0.22, Vector3(x, 0.15, z), boundary_material)
 
 
-# ---------------- PITCH ----------------
+func create_pitch() -> void:
+    var pitch_material := make_material(Color(0.72, 0.56, 0.35))
+    add_box(self, Vector3(3.5, 0.12, 24), Vector3(0, 0.02, -1), pitch_material)
 
-func _build_pitch() -> void:
-    _box(
-        self,
-        Vector3(3.2, 0.12, 12),
-        Vector3(0, 0.02, 0),
-        Color(0.66, 0.48, 0.30)
-    )
+    var line_material := make_material(Color.WHITE)
 
-    for z in [-4.2, 4.2]:
-        _box(
-            self,
-            Vector3(4.0, 0.025, 0.12),
-            Vector3(0, 0.095, z),
-            Color.WHITE
-        )
+    add_box(self, Vector3(3.5, 0.04, 0.12), Vector3(0, 0.12, -12), line_material)
+    add_box(self, Vector3(3.5, 0.04, 0.12), Vector3(0, 0.12, 10), line_material)
 
-        for side in [-1.0, 1.0]:
-            _box(
-                self,
-                Vector3(0.12, 0.025, 1.0),
-                Vector3(float(side) * 1.8, 0.095, z),
-                Color.WHITE
-            )
+    create_wickets(Vector3(0, 0, -10))
+    create_wickets(Vector3(0, 0, 8))
 
 
-func _build_wickets() -> void:
-    for z in [-4.2, 4.2]:
-        for i in range(3):
-            var stump := MeshInstance3D.new()
-            var stump_mesh := CylinderMesh.new()
-            stump_mesh.top_radius = 0.045
-            stump_mesh.bottom_radius = 0.045
-            stump_mesh.height = 1.1
-            stump.mesh = stump_mesh
-            stump.position = Vector3((i - 1) * 0.18, 0.58, z)
-            stump.material_override = _mat(Color(0.95, 0.85, 0.65))
-            add_child(stump)
+func create_wickets(pos: Vector3) -> void:
+    for i in range(3):
+        var x: float = (float(i) - 1.0) * 0.22
+        add_box(self, Vector3(0.08, 0.9, 0.08), pos + Vector3(x, 0.48, 0), white_material)
+
+    add_box(self, Vector3(0.5, 0.05, 0.08), pos + Vector3(0, 0.95, 0), white_material)
 
 
-# ---------------- GAME INTERFACE ----------------
+func create_stadium() -> void:
+    var stand_material := make_material(Color(0.18, 0.2, 0.28))
+    var seat_material := make_material(Color(0.25, 0.3, 0.42))
 
-func _build_interface() -> void:
-    var layer := CanvasLayer.new()
-    add_child(layer)
+    add_box(self, Vector3(75, 5, 5), Vector3(0, 2, -36), stand_material)
+    add_box(self, Vector3(75, 5, 5), Vector3(0, 2, 36), stand_material)
+    add_box(self, Vector3(5, 5, 70), Vector3(-36, 2, 0), stand_material)
+    add_box(self, Vector3(5, 5, 70), Vector3(36, 2, 0), stand_material)
 
-    menu_panel = _make_panel(layer)
-    match_panel = _make_panel(layer)
+    for row in range(5):
+        for i in range(22):
+            var x: float = -27.0 + float(i) * 2.5
+            var z1: float = -33.0 - float(row) * 0.7
+            var z2: float = 33.0 + float(row) * 0.7
 
-    var title := _make_label(menu_panel, GAME_NAME, 38)
-    title.position = Vector2(0, 95)
-    title.size = Vector2(1280, 60)
-    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+            add_box(self, Vector3(1.0, 0.5, 0.7), Vector3(x, 3.0 + float(row) * 0.5, z1), seat_material)
+            add_box(self, Vector3(1.0, 0.5, 0.7), Vector3(x, 3.0 + float(row) * 0.5, z2), seat_material)
 
-    var club := _make_label(menu_panel, CLUB_NAME, 17)
-    club.position = Vector2(0, 160)
-    club.size = Vector2(1280, 35)
-    club.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    # দর্শক
+    var crowd_colors: Array[Color] = [
+        Color.RED,
+        Color.BLUE,
+        Color.YELLOW,
+        Color.WHITE,
+        Color.ORANGE,
+        Color.PURPLE
+    ]
 
-    var start_button := _make_button(
-        menu_panel, "START PRACTICE MATCH",
-        Vector2(440, 300), Vector2(400, 68)
-    )
-    start_button.pressed.connect(_start_match)
+    for row in range(5):
+        for i in range(22):
+            var x: float = -27.0 + float(i) * 2.5
+            var z1: float = -31.0 - float(row) * 0.7
+            var z2: float = 31.0 + float(row) * 0.7
+            var y: float = 3.6 + float(row) * 0.5
+            var color_index: int = (i + row) % crowd_colors.size()
+            var crowd_material := make_material(crowd_colors[color_index])
 
-    var note := _make_label(
-        menu_panel, "DPPCC 3D STADIUM PROTOTYPE", 15
-    )
-    note.position = Vector2(0, 610)
-    note.size = Vector2(1280, 30)
-    note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-    score_label = _make_label(match_panel, "DPPCC | 0/0 (0.0 overs)", 24)
-    score_label.position = Vector2(24, 18)
-    score_label.size = Vector2(500, 45)
-
-    status_label = _make_label(
-        match_panel, "Press BOWL to deliver the ball", 19
-    )
-    status_label.position = Vector2(0, 560)
-    status_label.size = Vector2(1280, 40)
-    status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-    var bowl_button := _make_button(
-        match_panel, "BOWL",
-        Vector2(900, 620), Vector2(150, 62)
-    )
-    bowl_button.pressed.connect(_bowl)
-
-    var shot_button := _make_button(
-        match_panel, "SHOT",
-        Vector2(1070, 620), Vector2(150, 62)
-    )
-    shot_button.pressed.connect(_play_shot)
-
-    var back_button := _make_button(
-        match_panel, "MENU",
-        Vector2(24, 620), Vector2(130, 62)
-    )
-    back_button.pressed.connect(_show_menu)
+            add_sphere(self, 0.25, Vector3(x, y, z1), crowd_material)
+            add_sphere(self, 0.25, Vector3(x, y, z2), crowd_material)
 
 
-func _make_panel(parent: Node) -> Control:
-    var panel := Control.new()
-    panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    parent.add_child(panel)
-    return panel
+func create_player(parent: Node3D, pos: Vector3, shirt: Material, is_batter: bool) -> Node3D:
+    var player := Node3D.new()
+    player.position = pos
+    parent.add_child(player)
+
+    var skin := make_material(Color(0.72, 0.45, 0.28))
+    var trousers := make_material(Color(0.08, 0.08, 0.12))
+
+    # শরীর
+    add_capsule(player, 0.38, 1.0, Vector3(0, 1.35, 0), shirt)
+
+    # মাথা
+    add_sphere(player, 0.28, Vector3(0, 2.15, 0), skin)
+
+    # হাত
+    add_limb(player, Vector3(-0.35, 1.7, 0), Vector3(-0.55, 1.05, -0.1), 0.13, shirt)
+    add_limb(player, Vector3(0.35, 1.7, 0), Vector3(0.55, 1.05, -0.1), 0.13, shirt)
+
+    # পা
+    add_limb(player, Vector3(-0.18, 0.9, 0), Vector3(-0.22, 0.12, 0), 0.16, trousers)
+    add_limb(player, Vector3(0.18, 0.9, 0), Vector3(0.22, 0.12, 0), 0.16, trousers)
+
+    # জুতা
+    add_box(player, Vector3(0.35, 0.15, 0.5), Vector3(-0.22, 0.08, -0.12), trousers)
+    add_box(player, Vector3(0.35, 0.15, 0.5), Vector3(0.22, 0.08, -0.12), trousers)
+
+    # ব্যাট
+    if is_batter:
+        var bat_item := add_box(player, Vector3(0.18, 1.35, 0.12), Vector3(0.65, 0.95, -0.25), brown_material)
+        bat_item.rotation_degrees.z = -20
+        bat = bat_item
+
+    return player
 
 
-func _make_label(parent: Node, value: String, font_size: int) -> Label:
-    var label := Label.new()
-    label.text = value
-    label.add_theme_font_size_override("font_size", font_size)
-    label.add_theme_color_override("font_color", Color.WHITE)
-    parent.add_child(label)
-    return label
+func create_players() -> void:
+    batter = create_player(self, Vector3(0, 0, 4), blue_material, true)
+    bowler = create_player(self, Vector3(0, 0, -14), red_material, false)
+
+    create_player(self, Vector3(0, 0, 10), green_material, false)
+
+    # ফিল্ডার
+    create_player(self, Vector3(-12, 0, -8), red_material, false)
+    create_player(self, Vector3(12, 0, -8), red_material, false)
+    create_player(self, Vector3(-19, 0, 2), red_material, false)
+    create_player(self, Vector3(19, 0, 2), red_material, false)
+    create_player(self, Vector3(-10, 0, 18), red_material, false)
+    create_player(self, Vector3(10, 0, 18), red_material, false)
 
 
-func _make_button(
-    parent: Node,
-    value: String,
-    pos: Vector2,
-    button_size: Vector2
-) -> Button:
+func create_ball() -> void:
+    ball = MeshInstance3D.new()
+    var mesh := SphereMesh.new()
+    mesh.radius = 0.16
+    mesh.height = 0.32
+    ball.mesh = mesh
+    ball.material_override = ball_material
+    ball.position = Vector3(0, 1.2, -12)
+    add_child(ball)
+
+
+func create_camera() -> void:
+    var camera := Camera3D.new()
+    camera.position = Vector3(0, 8, 17)
+    camera.look_at(Vector3(0, 1, -2), Vector3.UP)
+    camera.current = true
+    camera.fov = 65
+    add_child(camera)
+
+
+func create_ui() -> void:
+    var canvas := CanvasLayer.new()
+    add_child(canvas)
+
+    score_label = Label.new()
+    score_label.position = Vector2(15, 15)
+    score_label.add_theme_font_size_override("font_size", 23)
+    score_label.add_theme_color_override("font_color", Color.WHITE)
+    canvas.add_child(score_label)
+
+    status_label = Label.new()
+    status_label.position = Vector2(15, 55)
+    status_label.add_theme_font_size_override("font_size", 18)
+    status_label.add_theme_color_override("font_color", Color.YELLOW)
+    canvas.add_child(status_label)
+
+    var panel := PanelContainer.new()
+    panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+    panel.offset_top = -100
+    panel.offset_bottom = -10
+    panel.offset_left = 10
+    panel.offset_right = -10
+    canvas.add_child(panel)
+
+    var buttons := HBoxContainer.new()
+    buttons.add_theme_constant_override("separation", 8)
+    panel.add_child(buttons)
+
+    make_button(buttons, "BOWL", _on_bowl)
+    make_button(buttons, "DRIVE", _on_drive)
+    make_button(buttons, "DEFEND", _on_defend)
+    make_button(buttons, "PULL", _on_pull)
+
+
+func make_button(parent: Control, button_text: String, callback: Callable) -> void:
     var button := Button.new()
-    button.text = value
-    button.position = pos
-    button.size = button_size
-    button.add_theme_font_size_override("font_size", 20)
+    button.text = button_text
+    button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    button.custom_minimum_size = Vector2(0, 65)
+    button.add_theme_font_size_override("font_size", 18)
+    button.pressed.connect(callback)
     parent.add_child(button)
-    return button
 
 
-# ---------------- MATCH SYSTEM ----------------
-
-func _show_menu() -> void:
-    menu_panel.visible = true
-    match_panel.visible = false
-    ball_in_motion = false
-    ball.visible = false
-
-
-func _start_match() -> void:
-    score = 0
-    wickets = 0
-    balls_faced = 0
-    _update_score()
-
-    menu_panel.visible = false
-    match_panel.visible = true
-    status_label.text = "Practice match started. Press BOWL."
+func update_scoreboard() -> void:
+    score_label.text = CLUB_NAME + "\nDPPCC CRICKET   |   %d/%d   |   Overs: %d.%d" % [
+        score,
+        wickets,
+        int(balls / 6),
+        balls % 6
+    ]
 
 
-func _bowl() -> void:
-    if ball_in_motion:
-        status_label.text = "Wait for the current delivery."
+func _on_bowl() -> void:
+    if ball_active:
+        status_label.text = "Wait for the current ball!"
         return
 
-    ball_in_motion = true
-    shot_used = false
-    ball_z = -4.5
-    ball.position = Vector3(0, 0.35, ball_z)
-    ball.visible = true
-    status_label.text = "Ball coming... time your SHOT!"
-
-
-func _play_shot() -> void:
-    if not ball_in_motion:
-        status_label.text = "Press BOWL first."
+    if wickets >= 10 or balls >= 120:
+        status_label.text = "INNINGS FINISHED!"
         return
 
-    if shot_used:
-        status_label.text = "You already played this delivery."
+    balls += 1
+    shot_played = false
+    ball.position = Vector3(0, 1.3, -12)
+    ball_velocity = Vector3(0, -0.3, 11.5)
+    ball_active = true
+    status_label.text = "BOWLER IS RUNNING IN!"
+    update_scoreboard()
+
+
+func play_shot(direction: float, power: float, shot_name: String) -> void:
+    if not ball_active:
+        status_label.text = "First press BOWL!"
         return
 
-    shot_used = true
+    if shot_played:
+        status_label.text = "You already played this ball!"
+        return
 
-    if ball_z >= -1.7 and ball_z <= 1.5:
-        score += 4
-        status_label.text = "PERFECT TIMING! FOUR RUNS."
-    else:
-        status_label.text = "Shot missed. No runs."
+    var distance_to_batter: float = abs(ball.position.z - 3.0)
 
-    _update_score()
+    if distance_to_batter > 3.0 or ball.position.y > 2.8:
+        status_label.text = "Too early or too late!"
+        return
+
+    shot_played = true
+    ball_velocity = Vector3(direction * power, 5.0, -14.0)
+    status_label.text = shot_name + " SHOT!"
+    
+    if bat != null:
+        var tween := create_tween()
+        tween.tween_property(bat, "rotation_degrees:z", -95.0, 0.12)
+        tween.tween_property(bat, "rotation_degrees:z", -20.0, 0.25)
+
+
+func _on_drive() -> void:
+    play_shot(0.0, 1.0, "DRIVE")
+
+
+func _on_defend() -> void:
+    play_shot(0.0, 0.25, "DEFENCE")
+
+
+func _on_pull() -> void:
+    play_shot(1.0, 1.7, "PULL")
 
 
 func _process(delta: float) -> void:
-    if ball_in_motion:
-        ball_z += delta * 5.0
-        ball.position.z = ball_z
+    if not ball_active:
+        return
 
-        if ball_z >= 4.0:
-            ball_in_motion = false
-            ball.visible = false
-            balls_faced += 1
+    ball_velocity.y -= 9.8 * delta
+    ball.position += ball_velocity * delta
 
-            if not shot_used:
-                status_label.text = "DOT BALL. Press BOWL again."
+    if shot_played and ball.position.z < -27.0:
+        if abs(ball.position.x) > 28.0:
+            score += 6
+            status_label.text = "SIX! AMAZING SHOT!"
+        else:
+            score += 4
+            status_label.text = "FOUR! GREAT SHOT!"
 
-            _update_score()
+        ball_active = false
+        update_scoreboard()
 
+    elif not shot_played and ball.position.z > 6.0:
+        wickets += 1
+        ball_active = false
+        status_label.text = "OUT! WICKET!"
+        update_scoreboard()
 
-func _update_score() -> void:
-    var completed_overs: int = int(balls_faced / 6)
-    var balls_in_over: int = balls_faced % 6
-
-    score_label.text = "DPPCC | %d/%d (%d.%d overs)" % [
-        score,
-        wickets,
-        completed_overs,
-        balls_in_over
-    ]
+    elif ball.position.y < 0.0:
+        if shot_played:
+            score += 1
+            status_label.text = "ONE RUN!"
+            update_scoreboard()
+        else:
+            status_label.text = "DOT BALL!"
+        ball_active = false
