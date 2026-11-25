@@ -11,12 +11,12 @@ var score_label: Label
 var menu_panel: Control
 var match_panel: Control
 
-var score := 0
-var wickets := 0
-var balls_faced := 0
-var ball_in_motion := false
-var ball_z := -4.5
-var shot_used := false
+var score: int = 0
+var wickets: int = 0
+var balls_faced: int = 0
+var ball_in_motion: bool = false
+var ball_z: float = -4.5
+var shot_used: bool = false
 
 
 func _ready() -> void:
@@ -86,7 +86,6 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> MeshInst
 
 
 func _build_stadium() -> void:
-    # Large oval grass field
     var field := MeshInstance3D.new()
     var field_mesh := CylinderMesh.new()
     field_mesh.top_radius = 1.0
@@ -99,7 +98,6 @@ func _build_stadium() -> void:
     field.material_override = _mat(Color(0.10, 0.36, 0.14))
     add_child(field)
 
-    # Inner green playing area
     var inner := MeshInstance3D.new()
     var inner_mesh := CylinderMesh.new()
     inner_mesh.top_radius = 1.0
@@ -112,11 +110,10 @@ func _build_stadium() -> void:
     inner.material_override = _mat(Color(0.16, 0.46, 0.19))
     add_child(inner)
 
-    # Boundary markers
     for i in range(64):
-        var angle := TAU * float(i) / 64.0
-        var x := 34.0 * cos(angle)
-        var z := 27.0 * sin(angle)
+        var angle: float = TAU * float(i) / 64.0
+        var x: float = 34.0 * cos(angle)
+        var z: float = 27.0 * sin(angle)
 
         var marker := MeshInstance3D.new()
         var marker_mesh := SphereMesh.new()
@@ -136,27 +133,24 @@ func _build_stands() -> void:
     var blue := Color(0.08, 0.28, 0.62)
     var white := Color(0.85, 0.87, 0.90)
 
-    # Long-side stands
     for side in [-1.0, 1.0]:
         for row in range(6):
-            var z := side * (31.0 + row * 1.6)
-            var y := 0.45 + row * 0.72
+            var z: float = float(side) * (31.0 + float(row) * 1.6)
+            var y: float = 0.45 + float(row) * 0.72
 
             _box(self, Vector3(59, 0.55, 1.5),
                 Vector3(0, y, z), concrete)
 
-            # Seating sections
             for section in range(8):
-                var x := -25.0 + section * 7.1
-                var seat_color := blue if (row + section) % 2 == 0 else white
+                var x: float = -25.0 + float(section) * 7.1
+                var seat_color: Color = blue if (row + section) % 2 == 0 else white
                 _box(self, Vector3(6.7, 0.2, 0.55),
                     Vector3(x, y + 0.32, z), seat_color)
 
-    # End-side stands
     for side in [-1.0, 1.0]:
         for row in range(5):
-            var x := side * (38.0 + row * 1.4)
-            var y := 0.4 + row * 0.72
+            var x: float = float(side) * (38.0 + float(row) * 1.4)
+            var y: float = 0.4 + float(row) * 0.72
             _box(self, Vector3(1.5, 0.55, 48),
                 Vector3(x, y, 0), concrete)
 
@@ -172,14 +166,14 @@ func _build_floodlights() -> void:
             pole_mesh.bottom_radius = 0.28
             pole_mesh.height = 19.0
             pole.mesh = pole_mesh
-            pole.position = Vector3(x_side * 39, 9.5, z_side * 33)
+            pole.position = Vector3(float(x_side) * 39, 9.5, float(z_side) * 33)
             pole.material_override = _mat(pole_color)
             add_child(pole)
 
             var lamp := _box(
                 self,
                 Vector3(2.8, 0.8, 1.2),
-                Vector3(x_side * 39, 19, z_side * 33),
+                Vector3(float(x_side) * 39, 19, float(z_side) * 33),
                 Color(1.0, 0.94, 0.72)
             )
 
@@ -228,7 +222,6 @@ func _build_pitch() -> void:
         Color(0.66, 0.48, 0.30)
     )
 
-    # Bowling and batting crease lines
     for z in [-4.2, 4.2]:
         _box(
             self,
@@ -241,7 +234,7 @@ func _build_pitch() -> void:
             _box(
                 self,
                 Vector3(0.12, 0.025, 1.0),
-                Vector3(side * 1.8, 0.095, z),
+                Vector3(float(side) * 1.8, 0.095, z),
                 Color.WHITE
             )
 
@@ -423,8 +416,8 @@ func _process(delta: float) -> void:
 
 
 func _update_score() -> void:
-    var completed_overs := int(balls_faced / 6)
-    var balls_in_over := balls_faced % 6
+    var completed_overs: int = int(balls_faced / 6)
+    var balls_in_over: int = balls_faced % 6
 
     score_label.text = "DPPCC | %d/%d (%d.%d overs)" % [
         score,
